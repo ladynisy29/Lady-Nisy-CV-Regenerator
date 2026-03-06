@@ -24,6 +24,11 @@ interface CVData {
   sections: { heading: string; content: string }[]
 }
 
+interface GenerateCvResponse {
+  parsedCv: unknown
+  tailoredCv: CVData
+}
+
 export default function Page() {
   const [step, setStep] = useState(1)
   const [cvFile, setCvFile] = useState<File | null>(null)
@@ -66,33 +71,15 @@ export default function Page() {
       })
 
       if (!response.ok) {
-        throw new Error("Failed to generate CV")
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Failed to generate CV")
       }
 
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error("No response body")
-
-      const decoder = new TextDecoder()
-      let fullText = ""
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value, { stream: true })
-        fullText += chunk
-        setStreamingText(fullText)
-      }
-
-      try {
-        const parsed = JSON.parse(fullText)
-        setCvData(parsed)
-      } catch {
-        setError("Failed to parse the generated CV. Please try again.")
-      }
+      const parsed = (await response.json()) as GenerateCvResponse
+      setCvData(parsed.tailoredCv)
     } catch (err) {
       console.error(err)
-      setError("Something went wrong. Please try again.")
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.")
     } finally {
       setIsGenerating(false)
       setStreamingText("")
