@@ -155,7 +155,9 @@ export function CVPreview({ data, isGenerating, streamingText }: CVPreviewProps)
       }
 
       const pdfBytes = await pdfDoc.save()
-      const blob = new Blob([pdfBytes], { type: "application/pdf" })
+      const pdfArrayBuffer = new ArrayBuffer(pdfBytes.byteLength)
+      new Uint8Array(pdfArrayBuffer).set(pdfBytes)
+      const blob = new Blob([pdfArrayBuffer], { type: "application/pdf" })
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
       link.href = url
@@ -181,7 +183,7 @@ export function CVPreview({ data, isGenerating, streamingText }: CVPreviewProps)
           </span>
         </div>
         {streamingText && (
-          <div className="rounded-lg border-2 border-primary/20 bg-card p-6">
+          <div className="rounded-lg border border-primary/30 bg-card/80 p-6">
             <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-muted-foreground">
               {streamingText}
             </pre>
@@ -193,8 +195,8 @@ export function CVPreview({ data, isGenerating, streamingText }: CVPreviewProps)
 
   if (!data) {
     return (
-      <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed border-border bg-card p-8">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-dashed border-border">
+      <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-primary/30 bg-card/70 p-8">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full border border-dashed border-primary/40 bg-background/70">
           <Download className="h-6 w-6 text-muted-foreground" />
         </div>
         <div className="flex flex-col items-center gap-1 text-center">
@@ -216,7 +218,7 @@ export function CVPreview({ data, isGenerating, streamingText }: CVPreviewProps)
         <Button
           onClick={handleDownload}
           disabled={isDownloading}
-          className="bg-accent text-accent-foreground hover:bg-accent/90"
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
           {isDownloading ? (
             <>
@@ -232,12 +234,12 @@ export function CVPreview({ data, isGenerating, streamingText }: CVPreviewProps)
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-lg border-2 border-primary/20 bg-card shadow-sm">
+      <div className="overflow-hidden rounded-lg border border-primary/30 bg-card/85 shadow-[0_16px_48px_hsl(var(--background)/0.7)]">
         {/* Header */}
-        <div className="border-b border-border bg-primary/[0.03] p-6">
+        <div className="border-b border-primary/25 bg-gradient-to-r from-primary/15 to-accent/10 p-6">
           <h2 className="text-2xl font-bold text-primary">{data.fullName}</h2>
           {data.title && (
-            <p className="mt-1 text-sm font-medium text-accent">{data.title}</p>
+            <p className="mt-1 text-sm font-medium text-foreground/90">{data.title}</p>
           )}
           <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
             {data.email && <span>{data.email}</span>}

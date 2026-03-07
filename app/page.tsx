@@ -91,21 +91,23 @@ export default function Page() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b-2 border-primary/10 bg-card">
+      <header className="animate-fade-in border-b border-primary/30 bg-card/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <FileText className="h-5 w-5 text-primary-foreground" />
+          <div className="animate-fade-up flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-accent shadow-[0_0_20px_hsl(var(--primary)/0.45)]">
+              <FileText className="h-5 w-5 text-black" />
             </div>
-            <span className="text-lg font-bold text-primary">CV Forge</span>
+            <span className="text-lg font-bold text-primary">Lady Nisy's CV Regenerator</span>
           </div>
-          <StepIndicator currentStep={step} steps={STEPS} />
+          <div className="animate-fade-up animate-delay-1">
+            <StepIndicator currentStep={step} steps={STEPS} />
+          </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         {step === 1 && (
-          <div className="mx-auto max-w-2xl">
+          <div className="animate-fade-up mx-auto max-w-2xl rounded-2xl border border-primary/25 bg-card/70 p-6 shadow-[0_24px_80px_hsl(var(--background)/0.8)] sm:p-8">
             <div className="mb-8 flex flex-col gap-2">
               <h1 className="text-balance text-2xl font-bold text-primary sm:text-3xl">
                 Upload Your Existing CV
@@ -138,7 +140,7 @@ export default function Page() {
         )}
 
         {step === 2 && (
-          <div className="mx-auto max-w-2xl">
+          <div className="animate-fade-up mx-auto max-w-2xl rounded-2xl border border-primary/25 bg-card/70 p-6 shadow-[0_24px_80px_hsl(var(--background)/0.8)] sm:p-8">
             <div className="mb-8 flex flex-col gap-2">
               <h1 className="text-balance text-2xl font-bold text-primary sm:text-3xl">
                 Paste the Job Offer
@@ -161,7 +163,7 @@ export default function Page() {
                 value={jobOffer}
                 onChange={(e) => setJobOffer(e.target.value)}
                 placeholder="Paste the full job offer here... Include the job title, requirements, responsibilities, and any other details."
-                className="min-h-[280px] resize-y border-2 bg-card text-sm leading-relaxed"
+                className="min-h-[280px] resize-y border border-primary/30 bg-background/80 text-sm leading-relaxed shadow-inner"
               />
               <span className="text-xs text-muted-foreground">
                 {jobOffer.length > 0
@@ -195,7 +197,7 @@ export default function Page() {
         )}
 
         {step === 3 && (
-          <div className="flex flex-col gap-6">
+          <div className="animate-fade-up flex flex-col gap-6 rounded-2xl border border-primary/25 bg-card/70 p-6 shadow-[0_24px_80px_hsl(var(--background)/0.8)] sm:p-8">
             <div className="flex flex-col gap-2">
               <h1 className="text-balance text-2xl font-bold text-primary sm:text-3xl">
                 Your AI-Tailored CV
@@ -206,7 +208,7 @@ export default function Page() {
             </div>
 
             {error && (
-              <div className="rounded-lg border-2 border-destructive/30 bg-destructive/5 p-4">
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4">
                 <p className="text-sm text-destructive">{error}</p>
                 <Button
                   variant="outline"
@@ -268,7 +270,7 @@ export default function Page() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t-2 border-primary/10 bg-card">
+      <footer className="animate-fade-in animate-delay-2 border-t border-primary/30 bg-card/75 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-center px-4 py-4 sm:px-6">
           <p className="text-xs text-muted-foreground">
             Your data is processed securely and never stored on our servers.

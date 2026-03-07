@@ -7,7 +7,7 @@ const _inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const _spaceMono = Space_Mono({ weight: ['400', '700'], subsets: ['latin'], variable: '--font-space-mono' })
 
 export const metadata: Metadata = {
-  title: 'CV Forge - AI-Powered Resume Builder',
+  title: "Lady Nisy's CV Regenerator - AI-Powered Resume Builder",
   description: 'Upload your old CV and a job offer to generate a perfectly tailored resume with AI.',
 }
 

@@ -1,4 +1,4 @@
-# CV Forge
+# Lady Nisy's CV Regenerator
 
 AI-powered CV optimization system that converts an uploaded resume into structured JSON, aligns candidate experience with target job requirements, and generates a role-specific CV without fabricating facts.
 
@@ -6,7 +6,7 @@ This project is intentionally built to showcase AI Engineering capabilities: LLM
 
 ## Why This Project
 
-Job seekers often rewrite the same CV repeatedly for similar roles. CV Forge reduces that friction by automating the transformation process while preserving factual integrity.
+Job seekers often rewrite the same CV repeatedly for similar roles. Lady Nisy's CV Regenerator reduces that friction by automating the transformation process while preserving factual integrity.
 
 Core goals:
 
