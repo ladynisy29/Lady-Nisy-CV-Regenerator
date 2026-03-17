@@ -134,7 +134,7 @@ export default function Page() {
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-accent shadow-[0_0_20px_hsl(var(--primary)/0.45)]">
               <FileText className="h-5 w-5 text-black" />
             </div>
-            <span className="text-lg font-bold text-primary">Lady Nisy's CV Regenerator</span>
+            <span className="text-lg font-bold text-primary">Lady Nisy&apos;s CV Regenerator</span>
           </div>
           <div className="animate-fade-up animate-delay-1">
             <StepIndicator currentStep={step} steps={STEPS} />

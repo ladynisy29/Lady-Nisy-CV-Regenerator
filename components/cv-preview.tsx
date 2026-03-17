@@ -938,22 +938,6 @@ function isPrimaryBulletLine(
   return false
 }
 
-function getFittedFontSize(
-  text: string,
-  font: { widthOfTextAtSize: (text: string, size: number) => number },
-  preferredSize: number,
-  minSize: number,
-  maxWidth: number
-): number {
-  let fontSize = preferredSize
-
-  while (fontSize > minSize && font.widthOfTextAtSize(text, fontSize) > maxWidth) {
-    fontSize -= 0.25
-  }
-
-  return fontSize
-}
-
 function wrapText(
   text: string,
   font: { widthOfTextAtSize: (text: string, size: number) => number },

@@ -147,6 +147,36 @@ function resolveModel() {
   return openAIProvider.chat(openAIModel)
 }
 
+function toUserFacingGenerationError(error: unknown) {
+  const fallback = "Failed to generate CV due to an unexpected AI provider error."
+  const message = error instanceof Error ? error.message : ""
+  const normalized = message.toLowerCase()
+
+  if (!message) {
+    return fallback
+  }
+
+  if (normalized.includes("`models` permission is required")) {
+    return (
+      "GitHub Models access is not enabled for this token. " +
+      "Create or update your PAT with Models read/inference permission, then set GITHUB_MODELS_API_KEY in .env.local and restart the dev server."
+    )
+  }
+
+  if (
+    normalized.includes("gITHUB_models_api_key".toLowerCase()) ||
+    normalized.includes("openai_api_key")
+  ) {
+    return message
+  }
+
+  if (normalized.includes("placeholder value")) {
+    return message
+  }
+
+  return `${fallback} ${message}`.trim()
+}
+
 const ParsedCVSchema = z.object({
   fullName: z.string().describe("Candidate full name"),
   title: z.string().describe("Current or most relevant professional title"),
@@ -744,9 +774,7 @@ Keep the same resume template shape used by the app:
     console.error("CV generation error:", error)
     return Response.json(
       {
-        error:
-          "Failed to generate CV: " +
-          (error instanceof Error ? error.message : "Unknown error"),
+        error: toUserFacingGenerationError(error),
       },
       { status: 500 }
     )
