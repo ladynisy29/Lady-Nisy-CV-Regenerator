@@ -7,15 +7,127 @@ const DEFAULT_GITHUB_MODELS_BASE_URL = "https://models.inference.ai.azure.com"
 const DEFAULT_GITHUB_MODELS_MODEL = "gpt-4.1-mini"
 const MAX_CV_TEXT_CHARS = 80_000
 const MAX_JOB_OFFER_CHARS = 20_000
-const ATS_SECTION_ORDER = [
-  "Work Experience",
-  "Education",
-  "Skills",
-  "Projects & Research",
-  "Certifications",
-  "Languages",
-  "Online Profiles",
-] as const
+type OutputLanguage = "en" | "fr"
+type SectionKey =
+  | "workExperience"
+  | "education"
+  | "skills"
+  | "projectsResearch"
+  | "certifications"
+  | "languages"
+  | "onlineProfiles"
+
+const ATS_SECTION_ORDER: SectionKey[] = [
+  "workExperience",
+  "education",
+  "skills",
+  "projectsResearch",
+  "certifications",
+  "languages",
+  "onlineProfiles",
+]
+
+const SECTION_LABELS: Record<OutputLanguage, Record<SectionKey, string>> = {
+  en: {
+    workExperience: "Work Experience",
+    education: "Education",
+    skills: "Skills",
+    projectsResearch: "Projects & Research",
+    certifications: "Certifications",
+    languages: "Languages",
+    onlineProfiles: "Online Profiles",
+  },
+  fr: {
+    workExperience: "Experience Professionnelle",
+    education: "Formation",
+    skills: "Competences",
+    projectsResearch: "Projets & Recherche",
+    certifications: "Certifications",
+    languages: "Langues",
+    onlineProfiles: "Profils En Ligne",
+  },
+}
+
+const SECTION_ALIASES: Record<SectionKey, string[]> = {
+  workExperience: [
+    "experience",
+    "work experience",
+    "professional experience",
+    "employment",
+    "experience professionnelle",
+    "experiences professionnelles",
+    "parcours professionnel",
+  ],
+  education: ["education", "academic background", "formation", "etudes", "parcours academique"],
+  skills: [
+    "skills",
+    "technical skills",
+    "core skills",
+    "competencies",
+    "competences",
+    "competences techniques",
+    "savoir-faire",
+  ],
+  projectsResearch: [
+    "projects",
+    "project experience",
+    "projects & research",
+    "research",
+    "research experience",
+    "projets",
+    "projets et recherche",
+    "recherche",
+  ],
+  certifications: ["certifications", "certification", "certificat", "certificats"],
+  languages: ["languages", "language", "langues", "langue"],
+  onlineProfiles: [
+    "online profiles",
+    "online profile",
+    "profiles",
+    "links",
+    "profils en ligne",
+    "profil en ligne",
+    "liens",
+  ],
+}
+
+const FRENCH_LANGUAGE_HINTS = [
+  " le ",
+  " la ",
+  " les ",
+  " des ",
+  " du ",
+  " une ",
+  " un ",
+  " pour ",
+  " avec ",
+  "vous",
+  "nous",
+  "experience",
+  "competences",
+  "responsabilites",
+  "profil",
+  "poste",
+  "candidat",
+  "francais",
+  "anglais",
+]
+
+const ENGLISH_LANGUAGE_HINTS = [
+  " the ",
+  " and ",
+  " with ",
+  " for ",
+  " you ",
+  " your ",
+  " candidate",
+  "requirements",
+  "responsibilities",
+  "experience",
+  "skills",
+  "english",
+  "french",
+]
 
 const SKILL_CATEGORY_ORDER = [
   "AI & Machine Learning",
@@ -51,6 +163,9 @@ const SKILL_CATEGORY_KEYWORDS: Record<(typeof SKILL_CATEGORY_ORDER)[number], str
     "statistics",
     "excel",
     "power bi",
+    "donnees",
+    "analyse",
+    "statistiques",
   ],
   "Engineering & Tools": [
     "python",
@@ -66,6 +181,8 @@ const SKILL_CATEGORY_KEYWORDS: Record<(typeof SKILL_CATEGORY_ORDER)[number], str
     "jupyter",
     "notebook",
     "pipeline",
+    "ingenierie",
+    "outils",
   ],
   "Testing & Quality": [
     "test",
@@ -76,6 +193,8 @@ const SKILL_CATEGORY_KEYWORDS: Record<(typeof SKILL_CATEGORY_ORDER)[number], str
     "automation",
     "metrics",
     "performance",
+    "qualite",
+    "validation",
   ],
   "Soft Skills": [
     "leadership",
@@ -88,8 +207,30 @@ const SKILL_CATEGORY_KEYWORDS: Record<(typeof SKILL_CATEGORY_ORDER)[number], str
     "attention to detail",
     "ownership",
     "multilingual",
+    "communication",
+    "collaboration",
+    "leadership",
   ],
   Other: [],
+}
+
+const SKILL_CATEGORY_LABELS: Record<OutputLanguage, Record<(typeof SKILL_CATEGORY_ORDER)[number], string>> = {
+  en: {
+    "AI & Machine Learning": "AI & Machine Learning",
+    "Data & Analytics": "Data & Analytics",
+    "Engineering & Tools": "Engineering & Tools",
+    "Testing & Quality": "Testing & Quality",
+    "Soft Skills": "Soft Skills",
+    Other: "Other",
+  },
+  fr: {
+    "AI & Machine Learning": "IA & Machine Learning",
+    "Data & Analytics": "Donnees & Analyse",
+    "Engineering & Tools": "Ingenierie & Outils",
+    "Testing & Quality": "Tests & Qualite",
+    "Soft Skills": "Soft Skills",
+    Other: "Autres",
+  },
 }
 
 const URL_REGEX = /(?:https?:\/\/[^\s)]+|www\.[^\s)]+|(?:github|linkedin|youtube)\.com\/[^\s)]+|youtu\.be\/[^\s)]+)/gi
@@ -268,14 +409,58 @@ function sanitizePromptText(value: string) {
   return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim()
 }
 
+function normalizeForLanguageDetection(value: string) {
+  return ` ${value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")} `
+}
+
+function countHintMatches(text: string, hints: string[]) {
+  let score = 0
+  for (const hint of hints) {
+    if (text.includes(hint)) {
+      score += 1
+    }
+  }
+  return score
+}
+
+function detectOutputLanguage(jobOffer: string): OutputLanguage {
+  const normalized = normalizeForLanguageDetection(jobOffer)
+  const frenchScore = countHintMatches(normalized, FRENCH_LANGUAGE_HINTS)
+  const englishScore = countHintMatches(normalized, ENGLISH_LANGUAGE_HINTS)
+
+  if (frenchScore >= englishScore && frenchScore >= 2) {
+    return "fr"
+  }
+
+  return "en"
+}
+
+function getOutputLanguageName(language: OutputLanguage) {
+  return language === "fr" ? "French" : "English"
+}
+
+function getSectionLabel(sectionKey: SectionKey, language: OutputLanguage) {
+  return SECTION_LABELS[language][sectionKey]
+}
+
 function isOnlineProfilesHeading(heading: string) {
-  const normalizedHeading = heading.trim().toLowerCase()
-  return (
-    normalizedHeading === "online profiles" ||
-    normalizedHeading === "online profile" ||
-    normalizedHeading === "profiles" ||
-    normalizedHeading === "links"
-  )
+  return normalizeSectionHeadingToKey(heading) === "onlineProfiles"
+}
+
+function normalizeSectionHeadingToKey(heading: string): SectionKey | undefined {
+  const normalized = heading
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+
+  for (const sectionKey of ATS_SECTION_ORDER) {
+    if (SECTION_ALIASES[sectionKey].includes(normalized)) {
+      return sectionKey
+    }
+  }
+
+  return undefined
 }
 
 function collectOnlineProfiles(parsedCv: z.infer<typeof ParsedCVSchema>) {
@@ -340,7 +525,12 @@ function collectSourceLinks(parsedCv: ParsedCV, cvText: string) {
   return [...links]
 }
 
-function ensureSourceLinksVisible(parsedCv: ParsedCV, cvText: string, cv: TailoredCV): TailoredCV {
+function ensureSourceLinksVisible(
+  parsedCv: ParsedCV,
+  cvText: string,
+  cv: TailoredCV,
+  language: OutputLanguage
+): TailoredCV {
   const sourceLinks = collectSourceLinks(parsedCv, cvText)
   if (sourceLinks.length === 0) {
     return cv
@@ -357,11 +547,12 @@ function ensureSourceLinksVisible(parsedCv: ParsedCV, cvText: string, cv: Tailor
   }
 
   const projectsIndex = cv.sections.findIndex(
-    (section) => normalizeSectionHeading(section.heading) === "Projects & Research"
+    (section) => normalizeSectionHeadingToKey(section.heading) === "projectsResearch"
   )
   if (projectsIndex > -1) {
     const targetSection = cv.sections[projectsIndex]
-    const appended = `${targetSection.content.trim()}\n- Project link: ${missingLinks.join("\n- Project link: ")}`
+    const projectLinkLabel = language === "fr" ? "Lien du projet" : "Project link"
+    const appended = `${targetSection.content.trim()}\n- ${projectLinkLabel}: ${missingLinks.join(`\n- ${projectLinkLabel}: `)}`
     return {
       ...cv,
       sections: cv.sections.map((section, index) =>
@@ -387,7 +578,7 @@ function ensureSourceLinksVisible(parsedCv: ParsedCV, cvText: string, cv: Tailor
     sections: [
       ...cv.sections,
       {
-        heading: "Online Profiles",
+        heading: getSectionLabel("onlineProfiles", language),
         content: missingLinks.join("\n"),
       },
     ],
@@ -414,34 +605,6 @@ function collectQuantifiedExperienceHighlights(parsedCv: ParsedCV) {
   return [...new Set(highlights)].slice(0, 4)
 }
 
-function normalizeSectionHeading(heading: string) {
-  const normalized = heading.trim().toLowerCase()
-
-  if (["experience", "work experience", "professional experience", "employment"].includes(normalized)) {
-    return "Work Experience"
-  }
-  if (["education", "academic background"].includes(normalized)) {
-    return "Education"
-  }
-  if (["skills", "technical skills", "core skills", "competencies"].includes(normalized)) {
-    return "Skills"
-  }
-  if (["projects", "project experience", "projects & research", "research", "research experience"].includes(normalized)) {
-    return "Projects & Research"
-  }
-  if (["certifications", "certification"].includes(normalized)) {
-    return "Certifications"
-  }
-  if (["languages", "language"].includes(normalized)) {
-    return "Languages"
-  }
-  if (isOnlineProfilesHeading(heading)) {
-    return "Online Profiles"
-  }
-
-  return heading.trim() || "Additional Information"
-}
-
 function normalizeSectionContent(content: string) {
   return content
     .split("\n")
@@ -451,7 +614,7 @@ function normalizeSectionContent(content: string) {
     .join("\n")
 }
 
-function categorizeSkillsContent(content: string) {
+function categorizeSkillsContent(content: string, language: OutputLanguage) {
   const rawLines = content
     .split("\n")
     .map((line) => line.replace(/^[•\-*]+\s*/, "").trim())
@@ -502,50 +665,58 @@ function categorizeSkillsContent(content: string) {
   for (const category of SKILL_CATEGORY_ORDER) {
     const items = categorized.get(category) ?? []
     if (items.length === 0) continue
-    formattedLines.push(`- ${category}: ${items.join(", ")}`)
+    formattedLines.push(`- ${SKILL_CATEGORY_LABELS[language][category]}: ${items.join(", ")}`)
   }
 
   return formattedLines.length > 0 ? formattedLines.join("\n") : content
 }
 
-function ensureCategorizedSkills(cv: TailoredCV): TailoredCV {
+function ensureCategorizedSkills(cv: TailoredCV, language: OutputLanguage): TailoredCV {
   return {
     ...cv,
     sections: cv.sections.map((section) => {
-      if (normalizeSectionHeading(section.heading) !== "Skills") {
+      if (normalizeSectionHeadingToKey(section.heading) !== "skills") {
         return section
       }
 
       return {
         ...section,
-        content: categorizeSkillsContent(section.content),
+        content: categorizeSkillsContent(section.content, language),
       }
     }),
   }
 }
 
-function enforceAtsStructure(cv: TailoredCV): TailoredCV {
-  const mergedByHeading = new Map<string, string[]>()
+function enforceAtsStructure(cv: TailoredCV, language: OutputLanguage): TailoredCV {
+  const mergedByHeadingKey = new Map<SectionKey, string[]>()
+  const mergedCustomHeadings = new Map<string, string[]>()
 
   for (const section of cv.sections) {
-    const heading = normalizeSectionHeading(section.heading)
     const normalizedContent = normalizeSectionContent(section.content)
     if (!normalizedContent) continue
 
-    const existing = mergedByHeading.get(heading) ?? []
-    existing.push(normalizedContent)
-    mergedByHeading.set(heading, existing)
+    const headingKey = normalizeSectionHeadingToKey(section.heading)
+    if (headingKey) {
+      const existing = mergedByHeadingKey.get(headingKey) ?? []
+      existing.push(normalizedContent)
+      mergedByHeadingKey.set(headingKey, existing)
+      continue
+    }
+
+    const heading = section.heading.trim() || (language === "fr" ? "Informations Complementaires" : "Additional Information")
+    const existingCustom = mergedCustomHeadings.get(heading) ?? []
+    existingCustom.push(normalizedContent)
+    mergedCustomHeadings.set(heading, existingCustom)
   }
 
   const orderedSections: TailoredCV["sections"] = []
-  for (const heading of ATS_SECTION_ORDER) {
-    const parts = mergedByHeading.get(heading)
+  for (const headingKey of ATS_SECTION_ORDER) {
+    const parts = mergedByHeadingKey.get(headingKey)
     if (!parts?.length) continue
-    orderedSections.push({ heading, content: parts.join("\n") })
-    mergedByHeading.delete(heading)
+    orderedSections.push({ heading: getSectionLabel(headingKey, language), content: parts.join("\n") })
   }
 
-  for (const [heading, parts] of mergedByHeading.entries()) {
+  for (const [heading, parts] of mergedCustomHeadings.entries()) {
     orderedSections.push({ heading, content: parts.join("\n") })
   }
 
@@ -558,7 +729,8 @@ function enforceAtsStructure(cv: TailoredCV): TailoredCV {
 
 function mergeOnlineProfilesIntoTailoredCv(
   parsedCv: ParsedCV,
-  tailoredCv: TailoredCV
+  tailoredCv: TailoredCV,
+  language: OutputLanguage
 ) {
   const hasProfilesSection = tailoredCv.sections.some((section) =>
     isOnlineProfilesHeading(section.heading)
@@ -578,21 +750,25 @@ function mergeOnlineProfilesIntoTailoredCv(
     sections: [
       ...tailoredCv.sections,
       {
-        heading: "Online Profiles",
+        heading: getSectionLabel("onlineProfiles", language),
         content: onlineProfiles.join("\n"),
       },
     ],
   }
 }
 
-function ensureQuantifiedWorkExperience(parsedCv: ParsedCV, cv: TailoredCV): TailoredCV {
+function ensureQuantifiedWorkExperience(
+  parsedCv: ParsedCV,
+  cv: TailoredCV,
+  language: OutputLanguage
+): TailoredCV {
   const quantifiedHighlights = collectQuantifiedExperienceHighlights(parsedCv)
   if (quantifiedHighlights.length === 0) {
     return cv
   }
 
   const workIndex = cv.sections.findIndex(
-    (section) => normalizeSectionHeading(section.heading) === "Work Experience"
+    (section) => normalizeSectionHeadingToKey(section.heading) === "workExperience"
   )
 
   if (workIndex === -1) {
@@ -600,7 +776,7 @@ function ensureQuantifiedWorkExperience(parsedCv: ParsedCV, cv: TailoredCV): Tai
       ...cv,
       sections: [
         {
-          heading: "Work Experience",
+          heading: getSectionLabel("workExperience", language),
           content: quantifiedHighlights.map((item) => `- ${item}`).join("\n"),
         },
         ...cv.sections,
@@ -617,7 +793,7 @@ function ensureQuantifiedWorkExperience(parsedCv: ParsedCV, cv: TailoredCV): Tai
     ...cv.sections[workIndex],
     content:
       `${currentContent.trim()}\n` +
-      "- Selected measurable achievements:\n" +
+      `${language === "fr" ? "- Realisations mesurees selectionnees:" : "- Selected measurable achievements:"}\n` +
       quantifiedHighlights.map((item) => `- ${item}`).join("\n"),
   }
 
@@ -654,6 +830,11 @@ export async function POST(req: Request) {
 
   const cvText = sanitizePromptText(parsedInput.data.cvText)
   const jobOffer = sanitizePromptText(parsedInput.data.jobOffer)
+  const outputLanguage = detectOutputLanguage(jobOffer)
+  const outputLanguageName = getOutputLanguageName(outputLanguage)
+  const templateSectionHeadings = ATS_SECTION_ORDER
+    .map((sectionKey) => getSectionLabel(sectionKey, outputLanguage))
+    .join(", ")
 
   try {
     const model = resolveModel()
@@ -690,10 +871,12 @@ ${cvText}
 
 Guidelines:
 - Preserve all factual information from the original CV JSON (name, contact, dates, companies, education).
+    - Write the generated CV in ${outputLanguageName}. Keep proper nouns (names, companies, product names) unchanged.
+    - Use these exact section headings in the output: ${templateSectionHeadings}.
 - Rewrite the professional summary to directly address the job requirements.
 - Reorganize and rephrase achievements to highlight relevant skills and measurable impact.
 - Use strong action verbs and quantified achievements where possible.
-- In Work Experience, include at least 2 quantified achievement bullets when such metrics are present in the source CV JSON.
+    - In ${getSectionLabel("workExperience", outputLanguage)}, include at least 2 quantified achievement bullets when such metrics are present in the source CV JSON.
 - Ensure skills section emphasizes technologies/competencies mentioned in the job offer and is clearly categorized.
 - Keep the tone professional and concise.
 - Do NOT fabricate experience or skills not present in the original CV.
@@ -725,11 +908,12 @@ Goal: maximize ATS compatibility and relevance for the provided job offer while 
 Hard rules:
 - Keep all factual data accurate and consistent with the original parsed CV.
 - Never invent companies, dates, degrees, skills, or achievements.
-- Preserve this resume template structure and naming: Work Experience, Education, Skills, Projects & Research, Certifications, Languages, Online Profiles.
+- Write the entire output in ${outputLanguageName}, except proper nouns that should remain unchanged.
+- Preserve this resume template structure and naming: ${templateSectionHeadings}.
 - Use plain text only (no tables, columns, emojis, icons, or special formatting).
 - Keep bullets concise and action-oriented.
 - Ensure job-offer keywords are reflected where they truthfully match candidate experience.
-- Ensure Work Experience includes quantified achievements when numeric evidence exists in the source CV JSON.
+- Ensure ${getSectionLabel("workExperience", outputLanguage)} includes quantified achievements when numeric evidence exists in the source CV JSON.
 - Ensure Skills is grouped into clear categories (for example: AI & Machine Learning, Engineering & Tools, Testing & Quality, Soft Skills) when relevant.
 - Prioritize readability, keyword match, and standard section naming.`,
       prompt: `Job offer:
@@ -755,16 +939,25 @@ Return an ATS-optimized version of the tailored CV following the exact schema.
 Keep the same resume template shape used by the app:
 - Summary stays in the summary field only.
 - Contact details stay in the top contact area.
-- Section headings should align with this template: Work Experience, Education, Skills, Projects & Research, Certifications, Languages, Online Profiles.
+- Section headings should align with this template: ${templateSectionHeadings}.
 - Do not introduce tables, columns, ratings, icons, or unconventional section names.`,
     })
 
-    const atsStructuredCv = enforceAtsStructure(atsOptimizedResult.object)
-    const withProfiles = mergeOnlineProfilesIntoTailoredCv(parsedCv, atsStructuredCv)
-    const withQuantifiedExperience = ensureQuantifiedWorkExperience(parsedCv, withProfiles)
-    const withCategorizedSkills = ensureCategorizedSkills(withQuantifiedExperience)
-    const withPreservedLinks = ensureSourceLinksVisible(parsedCv, cvText, withCategorizedSkills)
-    const finalCv = enforceAtsStructure(withPreservedLinks)
+    const atsStructuredCv = enforceAtsStructure(atsOptimizedResult.object, outputLanguage)
+    const withProfiles = mergeOnlineProfilesIntoTailoredCv(parsedCv, atsStructuredCv, outputLanguage)
+    const withQuantifiedExperience = ensureQuantifiedWorkExperience(
+      parsedCv,
+      withProfiles,
+      outputLanguage
+    )
+    const withCategorizedSkills = ensureCategorizedSkills(withQuantifiedExperience, outputLanguage)
+    const withPreservedLinks = ensureSourceLinksVisible(
+      parsedCv,
+      cvText,
+      withCategorizedSkills,
+      outputLanguage
+    )
+    const finalCv = enforceAtsStructure(withPreservedLinks, outputLanguage)
 
     return Response.json({
       parsedCv,

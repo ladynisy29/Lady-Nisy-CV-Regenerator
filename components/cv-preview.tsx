@@ -46,9 +46,145 @@ interface CVPreviewProps {
   streamingText: string
 }
 
+type OutputLanguage = "en" | "fr"
+type SectionKey =
+  | "workExperience"
+  | "education"
+  | "skills"
+  | "projectsResearch"
+  | "certifications"
+  | "languages"
+  | "onlineProfiles"
+
+const SECTION_ALIASES: Record<SectionKey, string[]> = {
+  workExperience: [
+    "experience",
+    "work experience",
+    "professional experience",
+    "employment",
+    "experience professionnelle",
+    "experiences professionnelles",
+    "parcours professionnel",
+  ],
+  education: ["education", "academic background", "formation", "etudes", "parcours academique"],
+  skills: [
+    "skills",
+    "technical skills",
+    "core skills",
+    "competencies",
+    "competences",
+    "competences techniques",
+    "savoir-faire",
+  ],
+  projectsResearch: [
+    "projects",
+    "project experience",
+    "projects & research",
+    "research",
+    "research experience",
+    "projets",
+    "projets et recherche",
+    "recherche",
+  ],
+  certifications: ["certifications", "certification", "certificat", "certificats"],
+  languages: ["languages", "language", "langues", "langue"],
+  onlineProfiles: [
+    "online profiles",
+    "online profile",
+    "profiles",
+    "links",
+    "profils en ligne",
+    "profil en ligne",
+    "liens",
+  ],
+}
+
+const SECTION_LABELS: Record<OutputLanguage, Record<SectionKey, string>> = {
+  en: {
+    workExperience: "Work Experience",
+    education: "Education",
+    skills: "Skills",
+    projectsResearch: "Projects & Research",
+    certifications: "Certifications",
+    languages: "Languages",
+    onlineProfiles: "Online Profiles",
+  },
+  fr: {
+    workExperience: "Experience Professionnelle",
+    education: "Formation",
+    skills: "Competences",
+    projectsResearch: "Projets & Recherche",
+    certifications: "Certifications",
+    languages: "Langues",
+    onlineProfiles: "Profils En Ligne",
+  },
+}
+
+function normalizeHeadingToken(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+}
+
+function getSectionKeyFromHeading(heading: string): SectionKey | undefined {
+  const normalizedHeading = normalizeHeadingToken(heading)
+
+  for (const [sectionKey, aliases] of Object.entries(SECTION_ALIASES) as Array<
+    [SectionKey, string[]]
+  >) {
+    if (aliases.includes(normalizedHeading)) {
+      return sectionKey
+    }
+  }
+
+  return undefined
+}
+
+function inferCvLanguage(sections: CVSection[]): OutputLanguage {
+  let frenchHits = 0
+  let englishHits = 0
+
+  for (const section of sections) {
+    const normalized = normalizeHeadingToken(section.heading)
+    if (
+      normalized.includes("experience professionnelle") ||
+      normalized.includes("formation") ||
+      normalized.includes("competences") ||
+      normalized.includes("langues") ||
+      normalized.includes("projets")
+    ) {
+      frenchHits += 1
+    }
+
+    if (
+      normalized.includes("work experience") ||
+      normalized.includes("education") ||
+      normalized.includes("skills") ||
+      normalized.includes("languages") ||
+      normalized.includes("projects")
+    ) {
+      englishHits += 1
+    }
+  }
+
+  return frenchHits >= englishHits && frenchHits > 0 ? "fr" : "en"
+}
+
+function getDisplayHeading(heading: string, language: OutputLanguage) {
+  const sectionKey = getSectionKeyFromHeading(heading)
+  if (!sectionKey) {
+    return heading
+  }
+
+  return SECTION_LABELS[language][sectionKey]
+}
+
 export function CVPreview({ data, isGenerating, streamingText }: CVPreviewProps) {
   const [isDownloading, setIsDownloading] = useState(false)
   const { contactProfiles, remainingSections } = extractOnlineProfiles(data?.sections ?? [])
+  const outputLanguage = inferCvLanguage(data?.sections ?? [])
   const profileEntries = contactProfiles.map(parseOnlineProfile)
   const baseContactItems: ContactItem[] = [data?.email, data?.phone, data?.location]
     .filter((value): value is string => Boolean(value))
@@ -227,7 +363,7 @@ export function CVPreview({ data, isGenerating, streamingText }: CVPreviewProps)
       // Summary
       if (data.summary) {
         addNewPageIfNeeded(34)
-        page.drawText("PROFILE", {
+        page.drawText(outputLanguage === "fr" ? "PROFIL" : "PROFILE", {
           x: margin,
           y,
           size: 11,
@@ -263,10 +399,7 @@ export function CVPreview({ data, isGenerating, streamingText }: CVPreviewProps)
       for (const section of remainingSections) {
         addNewPageIfNeeded(40)
 
-        const sectionHeading =
-          section.heading.trim().toLowerCase() === "experience"
-            ? "Work Experience"
-            : section.heading
+        const sectionHeading = getDisplayHeading(section.heading, outputLanguage)
         const isPrimaryBoldSection = shouldBoldPrimaryForSection(sectionHeading)
 
         page.drawText(sectionHeading.toUpperCase(), {
@@ -498,7 +631,9 @@ export function CVPreview({ data, isGenerating, streamingText }: CVPreviewProps)
           {data.summary && (
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-black">Profile</h3>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-black">
+                  {outputLanguage === "fr" ? "Profil" : "Profile"}
+                </h3>
                 <div className="h-px flex-1 bg-slate-300" />
               </div>
               <p className="text-sm leading-relaxed text-black">{data.summary}</p>
@@ -509,7 +644,7 @@ export function CVPreview({ data, isGenerating, streamingText }: CVPreviewProps)
             <div key={index} className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-black">
-                  {section.heading}
+                  {getDisplayHeading(section.heading, outputLanguage)}
                 </h3>
                 <div className="h-px flex-1 bg-slate-300" />
               </div>
@@ -557,9 +692,7 @@ function extractOnlineProfiles(sections: CVSection[]): {
   const remainingSections: CVSection[] = []
 
   for (const section of sections) {
-    const normalizedHeading = section.heading.trim().toLowerCase()
-    const isOnlineProfiles =
-      normalizedHeading === "online profiles" || normalizedHeading === "online profile"
+    const isOnlineProfiles = getSectionKeyFromHeading(section.heading) === "onlineProfiles"
 
     if (!isOnlineProfiles) {
       remainingSections.push(section)
@@ -764,17 +897,17 @@ function buildPlatformUrl(platform: string, value: string): string | undefined {
 }
 
 function parseSectionBulletItems(sectionHeading: string, content: string): BulletItem[] {
-  const normalizedHeading = sectionHeading.trim().toLowerCase()
+  const sectionKey = getSectionKeyFromHeading(sectionHeading)
   const lines = content
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
 
-  if (normalizedHeading === "skills") {
+  if (sectionKey === "skills") {
     return parseSkillsBulletItems(lines)
   }
 
-  if (["education", "languages", "language"].includes(normalizedHeading)) {
+  if (sectionKey === "education" || sectionKey === "languages") {
     return lines
       .map((line) => line.replace(/^[•\-*]+\s*/, "").trim())
       .filter(Boolean)
@@ -836,15 +969,15 @@ function splitDateSuffix(text: string): { leftText: string; dateText?: string } 
 }
 
 function shouldBoldPrimaryForSection(sectionHeading: string): boolean {
-  const normalizedHeading = sectionHeading.trim().toLowerCase()
-  return normalizedHeading === "work experience" || normalizedHeading === "projects & research"
+  const sectionKey = getSectionKeyFromHeading(sectionHeading)
+  return sectionKey === "workExperience" || sectionKey === "projectsResearch"
 }
 
 function isLikelyDateRange(value: string): boolean {
   const normalized = value.trim().toLowerCase()
   const hasMonth = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\b/.test(normalized)
   const hasYear = /\b(?:19|20)\d{2}\b/.test(normalized)
-  const hasPresent = /\bpresent\b/.test(normalized)
+  const hasPresent = /\b(?:present|actuel|maintenant|en cours)\b/.test(normalized)
   const hasRangeSeparator = /[-–—]/.test(normalized)
   return (hasMonth || hasYear || hasPresent) && (hasRangeSeparator || hasPresent)
 }
@@ -919,13 +1052,14 @@ function isPrimaryBulletLine(
     return true
   }
 
-  const normalizedHeading = sectionHeading.trim().toLowerCase()
+  const sectionKey = getSectionKeyFromHeading(sectionHeading)
   const hasDatePattern =
     /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\b/i.test(line) ||
     /\b(?:19|20)\d{2}\b/.test(line) ||
-    /\bpresent\b/i.test(line)
-  const hasRoleSeparator = /\|/.test(line) || /[–—-]\s*(?:present|(?:19|20)\d{2})/i.test(line)
-  const skillCategoryLine = normalizedHeading === "skills" && line.includes(":")
+    /\b(?:present|actuel|maintenant|en cours)\b/i.test(line)
+  const hasRoleSeparator =
+    /\|/.test(line) || /[–—-]\s*(?:present|actuel|maintenant|(?:19|20)\d{2})/i.test(line)
+  const skillCategoryLine = sectionKey === "skills" && line.includes(":")
 
   if (skillCategoryLine || hasDatePattern || hasRoleSeparator) {
     return true
